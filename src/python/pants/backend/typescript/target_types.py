@@ -19,10 +19,16 @@ from pants.engine.target import (
     generate_file_based_overrides_field_help_message,
     generate_multiple_sources_field_help_message,
 )
+from pants.util.frozendict import FrozenDict
 from pants.util.strutil import help_text
 
 TS_FILE_EXTENSIONS: tuple[str, ...] = (".ts", ".d.ts")
 TS_TEST_FILE_EXTENSIONS = tuple(f"*.test{ext}" for ext in TS_FILE_EXTENSIONS)
+# The sources TypeScript resolves a `.js` or `.jsx` specifier to, see
+# https://www.typescriptlang.org/docs/handbook/modules/reference.html#file-extension-substitution
+TS_SOURCES_OF_JS_SPECIFIER: FrozenDict[str, tuple[str, ...]] = FrozenDict(
+    {".js": (".ts", ".tsx", ".d.ts"), ".jsx": (".tsx",)}
+)
 
 
 class TypeScriptDependenciesField(JSRuntimeDependenciesField):

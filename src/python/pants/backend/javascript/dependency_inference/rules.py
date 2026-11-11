@@ -31,7 +31,7 @@ from pants.backend.javascript.target_types import (
 from pants.backend.jsx.target_types import JSX_FILE_EXTENSIONS
 from pants.backend.tsx.target_types import TSX_FILE_EXTENSIONS
 from pants.backend.typescript import tsconfig
-from pants.backend.typescript.target_types import TS_FILE_EXTENSIONS
+from pants.backend.typescript.target_types import TS_FILE_EXTENSIONS, TS_SOURCES_OF_JS_SPECIFIER
 from pants.backend.typescript.tsconfig import ParentTSConfigRequest, TSConfig, find_parent_ts_config
 from pants.build_graph.address import Address
 from pants.core.util_rules.unowned_dependency_behavior import (
@@ -162,22 +162,35 @@ async def _prepare_inference_metadata(address: Address, file_path: str) -> Infer
     )
 
 
+def _file_candidates(
+    file_path: str, extensions: tuple[str, ...], valid_file_extensions: set[str]
+) -> list[str]:
+    suffix = PurePath(file_path).suffix
+    if suffix not in valid_file_extensions:
+        # Any other import may name a file that is not a module (a stylesheet, a JSON
+        # document), so the exact path is a candidate too. The extension-completed candidates
+        # stay for a module path whose name contains a dot (`./moduleA.generated`).
+        return [file_path, *(f"{file_path}{ext}" for ext in extensions)]
+    stem = file_path[: -len(suffix)]
+    return [
+        file_path,
+        *(
+            f"{stem}{source}"
+            for source in TS_SOURCES_OF_JS_SPECIFIER.get(suffix, ())
+            if source in valid_file_extensions
+        ),
+    ]
+
+
 def _add_extensions(file_imports: frozenset[str], file_extensions: tuple[str, ...]) -> PathGlobs:
     extensions = file_extensions + tuple(f"/index{ext}" for ext in file_extensions)
     valid_file_extensions = set(file_extensions)
     # A bundler's query (`./App.tsx?raw`, `./logo.svg?url`) names the file before the `?`.
     file_paths = {file_import.partition("?")[0] for file_import in file_imports}
     return PathGlobs(
-        string
+        candidate
         for file_path in file_paths
-        for string in (
-            [file_path]
-            if PurePath(file_path).suffix in valid_file_extensions
-            # Any other import may name a file that is not a module (a stylesheet, a JSON
-            # document), so the exact path is a candidate too. The extension-completed candidates
-            # stay for a module path whose name contains a dot (`./moduleA.generated`).
-            else [file_path, *(f"{file_path}{ext}" for ext in extensions)]
-        )
+        for candidate in _file_candidates(file_path, extensions, valid_file_extensions)
     )
 
 
