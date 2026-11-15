@@ -22,6 +22,7 @@ from pants.core.environments.rules import (
     SingleEnvironmentNameRequest,
     resolve_single_environment_name,
 )
+from pants.core.environments.target_types import EnvironmentTarget
 from pants.core.goals.multi_tool_goal_helper import SkippableSubsystem
 from pants.core.goals.package import (
     BuiltPackage,
@@ -601,6 +602,11 @@ class TestSubsystem(GoalSubsystem):
     @property
     def default_process_cache_scope(self) -> ProcessCacheScope:
         return ProcessCacheScope.PER_SESSION if self.force else ProcessCacheScope.SUCCESSFUL
+
+    def process_cache_scope(self, environment: EnvironmentTarget) -> ProcessCacheScope:
+        """`--force` reruns; otherwise the environment's own policy (a workspace environment's runs
+        read and write the checkout, so their results are per session)."""
+        return ProcessCacheScope.PER_SESSION if self.force else environment.default_cache_scope
 
     output = EnumOption(
         default=ShowOutput.FAILED,
